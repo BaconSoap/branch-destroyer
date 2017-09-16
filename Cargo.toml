@@ -1,0 +1,6 @@
+[package]
+name = "branch-destroyer"
+version = "0.1.0"
+authors = ["Andrew Varnerin <andrew@varnerin.info>"]
+
+[dependencies]
