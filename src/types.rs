@@ -5,6 +5,7 @@ pub struct Context {
     pub repo: String,
     pub repo_id: u32,
     pub default_branch: String,
+    pub days_ago: u32,
 }
 
 #[derive(Debug)]

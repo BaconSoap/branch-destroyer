@@ -57,6 +57,8 @@ pub fn get_branches(ctx: &Context) -> Vec<Branch> {
     ]
 }
 
+/*
+
 fn build_url(days_old: u32) {}
 
 fn delete_branch() {}
@@ -64,3 +66,5 @@ fn delete_branch() {}
 fn format_branch_info() {}
 
 fn get_comparison(head: String, base: String, context: Context) {}
+
+*/
