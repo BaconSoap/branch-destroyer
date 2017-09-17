@@ -15,7 +15,7 @@ use hyper::client::RequestBuilder;
 use hyper::net::HttpsConnector;
 use hyper_native_tls::NativeTlsClient;
 
-use hyper::header::{Authorization, Link, UserAgent};
+use hyper::header::{Authorization, Link, LinkValue, UserAgent};
 use hyper::header::RelationType;
 
 pub fn get_full_branch_info(branch: Branch) -> BranchInfo {
@@ -102,23 +102,95 @@ pub fn get_branches(ctx: &Context) -> Vec<Branch> {
     let mut content = String::new();
     res.read_to_string(&mut content).unwrap();
 
-    let link = res.headers.get::<Link>().unwrap();
-    let next = link.values()
-        .into_iter()
-        .filter(|x| match x.rel() {
-            Some(x) => match x[0] {
-                RelationType::Next => true,
-                _ => false,
-            },
-            _ => false,
-        })
-        .next()
-        .unwrap();
+    let link_value = get_link_value(&res.headers, RelationType::Next);
+    let link_value2 = get_link_value(&res.headers, RelationType::Alternate);
 
-    println!("{:?}", next);
+    println!("{:?}", link_value);
+    println!("{:?}", link_value2);
     let data: Vec<Branch> = serde_json::from_str(&content).unwrap();
 
     data
+}
+
+/// Extract link={rel_type} values from the header collection
+///
+/// Returns Err if there's no link header or no link header whose rel={rel_type}
+fn get_link_value<'a>(
+    headers: &hyper::header::Headers,
+    rel_type: RelationType,
+) -> Result<LinkValue, String> {
+    let link = match headers.get::<Link>() {
+        Some(x) => Ok(x),
+        None => Err("No link header present in response".to_string()),
+    };
+
+    let next: Result<LinkValue, String> = link.and_then(|x| {
+        let a = x.values()
+            .into_iter()
+            .filter(|x| match x.rel() {
+                Some(x) => match x[0] {
+                    ref r if (r == &rel_type) => true,
+                    _ => false,
+                },
+                _ => false,
+            })
+            .next();
+
+        match a {
+            Some(l) => Ok(l.clone()),
+            None => Err(format!("No rel={} link headers present", rel_type)),
+        }
+    });
+
+    next
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::hyper;
+    use super::hyper::header::{Headers, Link, LinkValue, RelationType};
+    use super::get_link_value;
+
+    #[test]
+    pub fn get_link_value_works() {
+        let next_link = LinkValue::new("https://google.com").push_rel(RelationType::Next);
+        let prev_link = LinkValue::new("https://reddit.com").push_rel(RelationType::Prev);
+
+        let mut headers = Headers::new();
+        headers.set(Link::new(vec![next_link, prev_link]));
+
+        let next_res = get_link_value(&headers, RelationType::Next);
+        let prev_res = get_link_value(&headers, RelationType::Prev);
+        let alt_res = get_link_value(&headers, RelationType::Alternate);
+
+        assert!(
+            next_res.is_ok(),
+            "we should be able to fetch rel=next because it is in the collection"
+        );
+
+        assert!(
+            prev_res.is_ok(),
+            "we should be able to fetch rel=prev because it is in the collection"
+        );
+
+        assert!(
+            alt_res.is_err(),
+            "we should not be able to fetch rel=alternate because it is not in the collection"
+        );
+    }
+
+    #[test]
+    pub fn get_link_value_returns_err_for_headers_without_link() {
+        let headers = Headers::new();
+
+        let res = get_link_value(&headers, RelationType::Next);
+
+        assert!(
+            res.is_err(),
+            "we should not be able to fetch any link header if there are no link headers"
+        )
+    }
 }
 
 
