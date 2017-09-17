@@ -118,13 +118,13 @@ pub fn get_branches(ctx: &Context) -> Vec<Branch> {
 fn get_link_value<'a>(
     headers: &hyper::header::Headers,
     rel_type: RelationType,
-) -> Result<LinkValue, String> {
+) -> Result<LinkValue, GetLinkErr> {
     let link = match headers.get::<Link>() {
         Some(x) => Ok(x),
-        None => Err("No link header present in response".to_string()),
+        None => Err(GetLinkErr::NoLinkHeader),
     };
 
-    let next: Result<LinkValue, String> = link.and_then(|x| {
+    let next: Result<LinkValue, GetLinkErr> = link.and_then(|x| {
         let a = x.values()
             .into_iter()
             .filter(|x| match x.rel() {
@@ -138,19 +138,24 @@ fn get_link_value<'a>(
 
         match a {
             Some(l) => Ok(l.clone()),
-            None => Err(format!("No rel={} link headers present", rel_type)),
+            None => Err(GetLinkErr::NoMatchingRel(rel_type)),
         }
     });
 
     next
 }
 
+#[derive(Debug)]
+pub enum GetLinkErr {
+    NoLinkHeader,
+    NoMatchingRel(RelationType),
+}
+
 #[cfg(test)]
 mod tests {
 
-    use super::hyper;
     use super::hyper::header::{Headers, Link, LinkValue, RelationType};
-    use super::get_link_value;
+    use super::{get_link_value, GetLinkErr};
 
     #[test]
     pub fn get_link_value_works() {
@@ -174,10 +179,14 @@ mod tests {
             "we should be able to fetch rel=prev because it is in the collection"
         );
 
-        assert!(
-            alt_res.is_err(),
-            "we should not be able to fetch rel=alternate because it is not in the collection"
-        );
+        match alt_res {
+            Ok(_) => assert!(false, "we should not be able to fetch a missing rel"),
+            Err(GetLinkErr::NoLinkHeader) => assert!(
+                false,
+                "we should not see NoLinkHeader when the collection has a link"
+            ),
+            Err(GetLinkErr::NoMatchingRel(_)) => assert!(true),
+        }
     }
 
     #[test]
@@ -186,10 +195,17 @@ mod tests {
 
         let res = get_link_value(&headers, RelationType::Next);
 
-        assert!(
-            res.is_err(),
-            "we should not be able to fetch any link header if there are no link headers"
-        )
+        match res {
+            Ok(_) => assert!(
+                false,
+                "we should not be able to fetch any link header if there are no link headers"
+            ),
+            Err(GetLinkErr::NoMatchingRel(_)) => assert!(
+                false,
+                "we should not get this error if there are no link headers"
+            ),
+            Err(GetLinkErr::NoLinkHeader) => assert!(true),
+        }
     }
 }
 
