@@ -1,6 +1,15 @@
-pub mod types;
+extern crate hyper;
+extern crate hyper_native_tls;
 
+pub mod types;
 pub use types::*;
+
+use std::io::Read;
+use hyper::Client;
+use hyper::net::HttpsConnector;
+use hyper_native_tls::NativeTlsClient;
+
+use hyper::header::{Authorization, UserAgent};
 
 pub fn get_full_branch_info(branch: Branch) -> BranchInfo {
     let branch_name = branch.name.clone();
@@ -40,6 +49,20 @@ fn will_delete(branch: &BranchInfo) -> bool {
 }
 
 pub fn get_repository(ctx: &mut Context) {
+    let ssl = NativeTlsClient::new().unwrap();
+    let connector = HttpsConnector::new(ssl);
+
+    let client = Client::with_connector(connector);
+    let url = format!("https://api.github.com/repos/{}/{}", ctx.owner, ctx.repo);
+
+    let res = client
+        .get(&url)
+        .header(UserAgent("branch-destroyer 1.0".to_string()))
+        .header(Authorization(format!("token {}", ctx.token)))
+        .send()
+        .unwrap();
+
+    println!("{}", res.status);
     ctx.repo_id = ctx.repo_id + 1;
 }
 

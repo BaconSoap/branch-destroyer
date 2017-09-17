@@ -5,3 +5,5 @@ authors = ["Andrew Varnerin <andrew@varnerin.info>"]
 
 [dependencies]
 clap = "2.26.2"
+hyper = "0.10.13"
+hyper-native-tls = "0.2.4"
