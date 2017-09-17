@@ -15,7 +15,8 @@ use hyper::client::RequestBuilder;
 use hyper::net::HttpsConnector;
 use hyper_native_tls::NativeTlsClient;
 
-use hyper::header::{Authorization, UserAgent};
+use hyper::header::{Authorization, Link, UserAgent};
+use hyper::header::RelationType;
 
 pub fn get_full_branch_info(branch: Branch) -> BranchInfo {
     let branch_name = branch.name.clone();
@@ -88,19 +89,36 @@ pub fn get_repository(ctx: &mut Context) {
     ctx.repo_id = ctx.repo_id + 1;
 }
 
-
 pub fn get_branches(ctx: &Context) -> Vec<Branch> {
-    vec![
-        Branch {
-            name: "master".to_string(),
-        },
-        Branch {
-            name: "develop".to_string(),
-        },
-        Branch {
-            name: "feature/do-a-bunch-of-junk-and-stuff".to_string(),
-        },
-    ]
+    let url = format!(
+        "https://api.github.com/repos/{}/{}/branches",
+        ctx.owner,
+        ctx.repo
+    );
+
+    let client = get_client();
+    let mut res = get_request(&client, &ctx.token, &url).send().unwrap();
+
+    let mut content = String::new();
+    res.read_to_string(&mut content).unwrap();
+
+    let link = res.headers.get::<Link>().unwrap();
+    let next = link.values()
+        .into_iter()
+        .filter(|x| match x.rel() {
+            Some(x) => match x[0] {
+                RelationType::Next => true,
+                _ => false,
+            },
+            _ => false,
+        })
+        .next()
+        .unwrap();
+
+    println!("{:?}", next);
+    let data: Vec<Branch> = serde_json::from_str(&content).unwrap();
+
+    data
 }
 
 

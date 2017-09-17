@@ -1,3 +1,5 @@
+
+
 #[derive(Debug)]
 pub struct Context {
     pub token: String,
@@ -8,7 +10,7 @@ pub struct Context {
     pub days_ago: u32,
 }
 
-#[derive(Debug)]
+#[derive(Deserialize, Debug)]
 pub struct Branch {
     pub name: String,
 }

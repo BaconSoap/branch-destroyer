@@ -32,7 +32,6 @@ fn main() {
     let branches_info: Vec<BranchInfo> = branches.into_iter().map(get_full_branch_info).collect();
 
     print_branch_info(&branches_info);
-    print_branch_info(&branches_info);
 }
 
 fn get_args<'a>() -> clap::ArgMatches<'a> {
