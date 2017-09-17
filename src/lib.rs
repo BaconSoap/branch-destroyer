@@ -1,11 +1,17 @@
+#[macro_use]
+extern crate serde_derive;
+
 extern crate hyper;
 extern crate hyper_native_tls;
+extern crate serde_json;
 
 pub mod types;
 pub use types::*;
 
 use std::io::Read;
 use hyper::Client;
+use hyper::client::RequestBuilder;
+
 use hyper::net::HttpsConnector;
 use hyper_native_tls::NativeTlsClient;
 
@@ -48,23 +54,40 @@ fn will_delete(branch: &BranchInfo) -> bool {
     branch.ahead == 0
 }
 
-pub fn get_repository(ctx: &mut Context) {
+pub fn get_request<'a>(client: &'a Client, token: &'a str, url: &'a str) -> RequestBuilder<'a> {
+    let auth = format!("token {}", token.clone());
+
+    let req = client
+        .get(url)
+        .header(UserAgent("branch-destroyer 1.0".to_string()))
+        .header(Authorization(auth));
+
+    req
+}
+
+pub fn get_client() -> Client {
     let ssl = NativeTlsClient::new().unwrap();
     let connector = HttpsConnector::new(ssl);
 
-    let client = Client::with_connector(connector);
+    Client::with_connector(connector)
+}
+
+pub fn get_repository(ctx: &mut Context) {
     let url = format!("https://api.github.com/repos/{}/{}", ctx.owner, ctx.repo);
 
-    let res = client
-        .get(&url)
-        .header(UserAgent("branch-destroyer 1.0".to_string()))
-        .header(Authorization(format!("token {}", ctx.token)))
-        .send()
-        .unwrap();
+    let client = get_client();
+    let mut res = get_request(&client, &ctx.token, &url).send().unwrap();
+
+    let mut content = String::new();
+    res.read_to_string(&mut content).unwrap();
+
+    let repo: Repository = serde_json::from_str(&content).unwrap();
 
     println!("{}", res.status);
+    println!("{:?}", repo);
     ctx.repo_id = ctx.repo_id + 1;
 }
+
 
 pub fn get_branches(ctx: &Context) -> Vec<Branch> {
     vec![
@@ -79,6 +102,7 @@ pub fn get_branches(ctx: &Context) -> Vec<Branch> {
         },
     ]
 }
+
 
 /*
 

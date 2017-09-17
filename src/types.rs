@@ -19,3 +19,10 @@ pub struct BranchInfo {
     pub ahead: u32,
     pub behind: u32,
 }
+
+#[derive(Deserialize, Debug)]
+pub struct Repository {
+    pub id: u32,
+    pub name: String,
+    pub default_branch: String,
+}
