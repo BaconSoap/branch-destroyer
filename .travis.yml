@@ -69,9 +69,10 @@ before_deploy:
   - sh ci/before_deploy.sh
 
 deploy:
+  provider: releases
   api_key:
     secure: "IR+i8nMsv5+2jbq0+1n98N0MmV5MBbP3a/rJw2my6UPoO5Z9XdOyhttWx18LqvBWNpBRWBkmKo973LIxrCQddvWpaZQ1k6z9nhmomSQs5v1m4hOco0IcOd9NfZYDoG7JBl909VFfTV6c4Zh/KOi7D47PnL1K+pqIG73ZK1f69dMF7PWG2M0u5XQQJqbkG62vPm51Azn9J40v1VFhdpT/l3Uh/Z3m/2mTUmK/4decpw4atDbijy2zgCCPezKqTNZoY9b7ZEami8TbDgtKORoAhmVnLfYPUefk0zEHmN7AhKDuosMGoZSaPgA7SogLnGzGibCosjEKCKV2eTMfPhjSG1xs7QevQ8VVOkNDMTzU7DIS5TZkmPtcQAhUi7SNsldtV5/KwKcp+qhSy961KJFwIUdtG7r57N6ubciwdxd8HbRw9uwprDSkLikK+TS7U7uf56yaRaiWG5xqQ3JF5zbMXCUhiAivFwkG0511xngQd5fDW+m/1D6qq2dT2NL4HSPCuZRRcLbJMvIIG60gxGRcoEM48E2NNDHV4ibJAljUKEoo3KgYttXyLc8gb51LJ3s40nVotAlV4iCCBReNADbRuOzGd7GreLas1MuXDT+Jn8/6v1w+NRV6446XNVTZaGwFpD//qAeBoE2WNCsDdixJz78d/8nazSRYB7b0MYAnk2A="
-    file_glob: true
+  file_glob: true
   file: $CRATE_NAME-$TRAVIS_TAG-$TARGET.*
   on:
     # TODO Here you can pick which targets will generate binary releases
@@ -80,7 +81,6 @@ deploy:
     # for such targets and that's generated using the stable channel
     condition: $TRAVIS_RUST_VERSION = stable
     tags: true
-  provider: releases
   skip_cleanup: true
 
 cache: cargo
