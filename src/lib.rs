@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate serde_derive;
 
+extern crate chrono;
 extern crate hyper;
 extern crate hyper_native_tls;
 extern crate serde_json;
@@ -9,52 +10,43 @@ pub mod types;
 pub use types::*;
 
 use std::io::Read;
+
 use hyper::Client;
 use hyper::client::RequestBuilder;
-
 use hyper::net::HttpsConnector;
-use hyper_native_tls::NativeTlsClient;
-
 use hyper::header::{Authorization, Link, LinkValue, UserAgent};
 use hyper::header::RelationType;
 
-pub fn get_full_branch_info(branch: Branch) -> BranchInfo {
-    let branch_name = branch.name.clone();
-    BranchInfo {
-        branch,
-        ahead: if branch_name == "feature/do-a-bunch-of-junk-and-stuff" {
-            0
-        } else {
-            1
-        },
-        behind: 2,
-    }
-}
+use hyper_native_tls::NativeTlsClient;
 
-pub fn print_branch_info(branches_info: &Vec<BranchInfo>) {
+use chrono::{Duration, Utc};
+
+pub fn print_branch_info(branches_info: &Vec<BranchInfo>, ctx: &Context) {
     println!(
-        "{0:<60} | {1:<10} | {2:<10} | {3:<10}",
+        "{0:<50} | {1:<10} | {2:<10} | {3:<10} | {4:<10}",
         "Branch",
         "Ahead",
         "Behind",
+        "Age",
         "Will Delete"
     );
 
     for branch in branches_info {
-        let branch_name: String = branch.branch.name.chars().take(60).collect();
+        let branch_name: String = branch.branch.name.chars().take(50).collect();
 
         println!(
-            "{0:<60} | {1:<10} | {2:<10} | {3:<10}",
+            "{0:<50} | {1:<10} | {2:<10} | {3:<10} | {4:<10}",
             branch_name,
             branch.ahead,
             branch.behind,
-            will_delete(branch)
+            branch.age.num_days(),
+            will_delete(branch, &ctx)
         );
     }
 }
 
-fn will_delete(branch: &BranchInfo) -> bool {
-    branch.ahead == 0
+pub fn will_delete(branch: &BranchInfo, ctx: &Context) -> bool {
+    branch.ahead == 0 && branch.age.num_days() >= ctx.days_ago.into()
 }
 
 pub fn get_request<'a>(client: &'a Client, token: &'a str, url: &'a str) -> RequestBuilder<'a> {
@@ -86,9 +78,8 @@ pub fn get_repository(ctx: &mut Context) {
 
     let repo: Repository = serde_json::from_str(&content).unwrap();
 
-    println!("{}", res.status);
-    println!("{:?}", repo);
-    ctx.repo_id = ctx.repo_id + 1;
+    ctx.default_branch = repo.default_branch;
+    ctx.repo_id = repo.id;
 }
 
 pub fn get_branches(ctx: &Context) -> Vec<Branch> {
@@ -171,6 +162,40 @@ fn get_link_value<'a>(
     });
 
     next
+}
+
+pub fn get_branch_compare_info(ctx: &Context, branch: Branch) -> BranchInfo {
+    let client = get_client();
+    let url = format!(
+        "https://api.github.com/repos/{}/{}/compare/{}...{}",
+        ctx.owner,
+        ctx.repo,
+        ctx.default_branch,
+        branch.name
+    );
+
+    let mut res = get_request(&client, &ctx.token, &url).send().unwrap();
+
+    let mut content = String::new();
+    res.read_to_string(&mut content).unwrap();
+
+    let compare_result: ComparisonResult = serde_json::from_str(&content).unwrap();
+
+    let mut latest_commit = &compare_result.merge_base_commit;
+
+    if compare_result.commits.len() > 0 {
+        let i = compare_result.commits.len();
+        latest_commit = &compare_result.commits[i - 1];
+    }
+
+    let age = chrono::Utc::now().signed_duration_since(latest_commit.commit.author.date);
+
+    BranchInfo {
+        branch,
+        ahead: compare_result.ahead_by,
+        behind: compare_result.behind_by,
+        age,
+    }
 }
 
 #[derive(Debug)]

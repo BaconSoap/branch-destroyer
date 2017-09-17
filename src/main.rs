@@ -24,14 +24,33 @@ fn main() {
         days_ago
     };
 
-    println!("Context: {:?}", ctx);
 
     get_repository(&mut ctx);
+
+    println!("Context: {:?}", ctx);
+
     let branches = get_branches(&ctx);
+    let total_branches = branches.len();
 
-    let branches_info: Vec<BranchInfo> = branches.into_iter().map(get_full_branch_info).collect();
+    let branches_info: Vec<BranchInfo> = branches
+        .into_iter()
+        .filter(|x| x.name != "master")
+        .filter(|x| x.name != "develop")        
+        //.filter(|x| x.name == "andrew/minivan-fixer")
+        .take(100)
+        .map(|x| get_branch_compare_info(&ctx, x))
+//        .filter(|x| x.age.num_days() >= ctx.days_ago)
+        .collect();
 
-    print_branch_info(&branches_info);
+    let branches_to_delete = branches_info.iter().filter(|x| will_delete(x, &ctx)).collect();
+
+    print_branch_info(&branches_info, &ctx);
+    print_summary(&ctx, &branches_to_delete, total_branches);
+}
+
+fn print_summary(ctx: &Context, branches: &Vec<&BranchInfo>, total_branches: usize) {
+    println!();
+    println!("Found {} branches to delete out of {} branches total for {}/{}. SHAME SHAME SHAME", branches.len(), total_branches, ctx.owner, ctx.repo )
 }
 
 fn get_args<'a>() -> clap::ArgMatches<'a> {
