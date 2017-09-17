@@ -114,7 +114,7 @@ pub fn get_branches(ctx: &Context) -> Vec<Branch> {
 
 /// Extract link={rel_type} values from the header collection
 ///
-/// Returns Err if there's no link header or no link header whose rel={rel_type}
+/// Returns GetLinkErr if there's no link header or no link header whose rel={rel_type}
 fn get_link_value<'a>(
     headers: &hyper::header::Headers,
     rel_type: RelationType,
