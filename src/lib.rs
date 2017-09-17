@@ -41,9 +41,11 @@ pub fn print_branch_info(branches_info: &Vec<BranchInfo>) {
     );
 
     for branch in branches_info {
+        let branch_name: String = branch.branch.name.chars().take(60).collect();
+
         println!(
             "{0:<60} | {1:<10} | {2:<10} | {3:<10}",
-            branch.branch.name,
+            branch_name,
             branch.ahead,
             branch.behind,
             will_delete(branch)
@@ -90,12 +92,38 @@ pub fn get_repository(ctx: &mut Context) {
 }
 
 pub fn get_branches(ctx: &Context) -> Vec<Branch> {
-    let url = format!(
-        "https://api.github.com/repos/{}/{}/branches",
+    let first_url = format!(
+        "https://api.github.com/repos/{}/{}/branches?per_page=100",
         ctx.owner,
         ctx.repo
     );
 
+    let mut next_url = Some(first_url);
+    let mut all_branches: Vec<Branch> = vec![];
+
+    let mut i = 0;
+    while let Some(url) = next_url {
+        let results = get_branches_and_next(url, &ctx);
+        let mut results_branches = results.1;
+        all_branches.append(&mut results_branches);
+        next_url = results.0;
+
+        i = i + 1;
+        if i > 100 {
+            panic!("way too many branch iterations!");
+        }
+    }
+
+    println!(
+        "found {} branches, taking {} iterations",
+        all_branches.len(),
+        i
+    );
+
+    all_branches
+}
+
+fn get_branches_and_next(url: String, ctx: &Context) -> (Option<String>, Vec<Branch>) {
     let client = get_client();
     let mut res = get_request(&client, &ctx.token, &url).send().unwrap();
 
@@ -103,13 +131,13 @@ pub fn get_branches(ctx: &Context) -> Vec<Branch> {
     res.read_to_string(&mut content).unwrap();
 
     let link_value = get_link_value(&res.headers, RelationType::Next);
-    let link_value2 = get_link_value(&res.headers, RelationType::Alternate);
 
-    println!("{:?}", link_value);
-    println!("{:?}", link_value2);
     let data: Vec<Branch> = serde_json::from_str(&content).unwrap();
 
-    data
+    (
+        link_value.ok().and_then(|x| Some(x.link().to_string())),
+        data,
+    )
 }
 
 /// Extract link={rel_type} values from the header collection
