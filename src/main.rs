@@ -36,10 +36,8 @@ fn main() {
         .into_iter()
         .filter(|x| x.name != "master")
         .filter(|x| x.name != "develop")        
-        //.filter(|x| x.name == "andrew/minivan-fixer")
         .take(100)
         .map(|x| get_branch_compare_info(&ctx, x))
-//        .filter(|x| x.age.num_days() >= ctx.days_ago)
         .collect();
 
     let branches_to_delete = branches_info.iter().filter(|x| will_delete(x, &ctx)).collect();
