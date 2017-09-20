@@ -16,10 +16,9 @@ use hyper::client::RequestBuilder;
 use hyper::net::HttpsConnector;
 use hyper::header::{Authorization, Link, LinkValue, UserAgent};
 use hyper::header::RelationType;
+use hyper::method::Method;
 
 use hyper_native_tls::NativeTlsClient;
-
-use chrono::{Duration, Utc};
 
 pub fn print_branch_info(branches_info: &Vec<BranchInfo>, ctx: &Context) {
     println!(
@@ -49,11 +48,46 @@ pub fn will_delete(branch: &BranchInfo, ctx: &Context) -> bool {
     branch.ahead == 0 && branch.age.num_days() >= ctx.days_ago.into()
 }
 
-pub fn get_request<'a>(client: &'a Client, token: &'a str, url: &'a str) -> RequestBuilder<'a> {
+pub fn delete_branch(ctx: &Context, branch: BranchInfo) -> bool {
+    assert!(will_delete(&branch, ctx));
+
+    let url = format!(
+        "https://api.github.com/repos/{}/{}/git/refs/heads/{}",
+        ctx.owner,
+        ctx.repo,
+        branch.branch.name
+    );
+
+    let client = get_client();
+    let request = get_request(&client, &ctx.token, &url, Method::Delete);
+
+    let res = match request.send() {
+        Ok(res) => {
+            if !res.status.is_success() {
+                println!("{}", res.status);
+            }
+
+            res.status.is_success()
+        }
+        Err(e) => {
+            println!("{}", e);
+            false
+        }
+    };
+
+    res
+}
+
+pub fn get_request<'a>(
+    client: &'a Client,
+    token: &'a str,
+    url: &'a str,
+    method: Method,
+) -> RequestBuilder<'a> {
     let auth = format!("token {}", token.clone());
 
     let req = client
-        .get(url)
+        .request(method, url)
         .header(UserAgent("branch-destroyer 1.0".to_string()))
         .header(Authorization(auth));
 
@@ -71,7 +105,9 @@ pub fn get_repository(ctx: &mut Context) {
     let url = format!("https://api.github.com/repos/{}/{}", ctx.owner, ctx.repo);
 
     let client = get_client();
-    let mut res = get_request(&client, &ctx.token, &url).send().unwrap();
+    let mut res = get_request(&client, &ctx.token, &url, Method::Get)
+        .send()
+        .unwrap();
 
     let mut content = String::new();
     res.read_to_string(&mut content).unwrap();
@@ -116,7 +152,9 @@ pub fn get_branches(ctx: &Context) -> Vec<Branch> {
 
 fn get_branches_and_next(url: String, ctx: &Context) -> (Option<String>, Vec<Branch>) {
     let client = get_client();
-    let mut res = get_request(&client, &ctx.token, &url).send().unwrap();
+    let mut res = get_request(&client, &ctx.token, &url, Method::Get)
+        .send()
+        .unwrap();
 
     let mut content = String::new();
     res.read_to_string(&mut content).unwrap();
@@ -174,7 +212,9 @@ pub fn get_branch_compare_info(ctx: &Context, branch: Branch) -> BranchInfo {
         branch.name
     );
 
-    let mut res = get_request(&client, &ctx.token, &url).send().unwrap();
+    let mut res = get_request(&client, &ctx.token, &url, Method::Get)
+        .send()
+        .unwrap();
 
     let mut content = String::new();
     res.read_to_string(&mut content).unwrap();

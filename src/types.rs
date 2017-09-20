@@ -8,6 +8,7 @@ pub struct Context {
     pub repo_id: u32,
     pub default_branch: String,
     pub days_ago: u32,
+    pub for_real: bool,
 }
 
 #[derive(Deserialize, Debug)]

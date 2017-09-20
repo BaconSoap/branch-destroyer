@@ -21,13 +21,11 @@ fn main() {
         repo: matches.value_of("repo").unwrap().to_string(),
         repo_id: 0,
         default_branch: "Develop".to_string(),
-        days_ago
+        days_ago,
+        for_real: matches.is_present("for-real")
     };
 
-
     get_repository(&mut ctx);
-
-    println!("Context: {:?}", ctx);
 
     let branches = get_branches(&ctx);
     let total_branches = branches.len();
@@ -36,17 +34,34 @@ fn main() {
         .into_iter()
         .filter(|x| x.name != "master")
         .filter(|x| x.name != "develop")        
-        .take(100)
+        //.take(20)
         .map(|x| get_branch_compare_info(&ctx, x))
         .collect();
 
-    let branches_to_delete = branches_info.iter().filter(|x| will_delete(x, &ctx)).collect();
-
     print_branch_info(&branches_info, &ctx);
+
+    let branches_to_delete = branches_info.into_iter().filter(|x| will_delete(x, &ctx)).collect();
+
     print_summary(&ctx, &branches_to_delete, total_branches);
+
+    print_branch_info(&branches_to_delete, &ctx);
+    
+    if ctx.for_real {
+        for branch in branches_to_delete {
+            let branch_name = branch.branch.name.clone();
+
+            match delete_branch(&ctx, branch) {
+                true => println!("Deleted {}", branch_name),
+                false => println!("Failed to delete {}", branch_name)
+            }
+            
+            std::thread::sleep(std::time::Duration::from_millis(100));
+
+        }
+    }
 }
 
-fn print_summary(ctx: &Context, branches: &Vec<&BranchInfo>, total_branches: usize) {
+fn print_summary(ctx: &Context, branches: &Vec<BranchInfo>, total_branches: usize) {
     println!();
     println!("Found {} branches to delete out of {} branches total for {}/{}. SHAME SHAME SHAME", branches.len(), total_branches, ctx.owner, ctx.repo )
 }
@@ -100,6 +115,13 @@ fn get_args<'a>() -> clap::ArgMatches<'a> {
             .default_value("7")
             .help(
                 "Filters to branches whose last commit was created at least this many days ago"
+            )
+        )
+        .arg(
+            Arg::with_name("for-real")
+            .long("for-real")
+            .help(
+                "When set will really (for real!) delete branches. Be sure you want to do this."
             )
         )
         .get_matches()
